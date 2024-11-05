@@ -1,0 +1,36 @@
+import os
+from dotenv import load_dotenv
+from llama_parse import LlamaParse
+from llama_index.core import SimpleDirectoryReader, Document, VectorStoreIndex
+
+from query_llm import query_llm
+
+load_dotenv()
+
+API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
+
+extensions = {
+    "text": ".txt",
+    "markdown": ".md"
+}
+
+def parse_document(doc_path: str, result_type: str = "text") -> None:
+    
+    parser = LlamaParse(
+        language="en",
+        parsing_instruction = "You are parsing educational materials.",
+        result_type=result_type  # "markdown"/"text"
+    )
+
+    file_extractor = {
+        "default": parser
+    }
+
+    documents = SimpleDirectoryReader(input_files=[doc_path], file_extractor=file_extractor).load_data()
+
+    combined_markdown = "\n\n".join([doc.text for doc in documents if isinstance(doc, Document)])
+
+    print(query_llm(combined_markdown))
+
+parse_document("data/cs110-lecture-1-shorter.pdf")
+
