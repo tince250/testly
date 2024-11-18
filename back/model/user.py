@@ -19,4 +19,4 @@ class User(SQLModel, table=True):
     lastname: str
     role: UserRole
     
-    courses: list["Course"] = Relationship(link_model=UserCourseLink)
+    courses: List["Course"] = Relationship(link_model=UserCourseLink)

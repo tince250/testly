@@ -3,10 +3,9 @@ from pydantic import BaseModel
 from model.database import engine
 from sqlmodel import SQLModel
 
-from model.question import Question, MultipleChoiceQuestion
+from model.question import Question, MultipleChoiceQuestion, DefinitionQuestion
 from model.keyword import Keyword, KeywordHierarchy
-from model.course_material import CourseMaterial
-from model.course import Course
+from model.course import Course, CourseMaterial
 from model.user import UserCourseLink, User
 from model.test import UserTestLink, Test
 
