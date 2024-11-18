@@ -1,7 +1,21 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from model.database import engine
+from sqlmodel import SQLModel
+
+from model.question import Question, MultipleChoiceQuestion
+from model.keyword import Keyword, KeywordHierarchy
+from model.course_material import CourseMaterial
+from model.course import Course
+from model.user import UserCourseLink, User
+from model.test import UserTestLink, Test
 
 app = FastAPI()
+
+@app.on_event("startup")
+async def on_startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
 
 @app.get("/")
 async def read_root():
