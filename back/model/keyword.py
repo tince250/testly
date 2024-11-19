@@ -17,7 +17,7 @@ class Keyword(SQLModel, table=True):
     definition: str
 
     parent_id: Optional[int] = Field(default=None, foreign_key="keyword.id")
-    parent: Optional["Keyword"] = Relationship(back_populates="children")
+    parent: Optional["Keyword"] = Relationship(back_populates="children", sa_relationship_kwargs=dict(remote_side="Keyword.id"))
     children: List["Keyword"] = Relationship(back_populates="parent")
 
     hierarchy: Optional[KeywordHierarchy] = Relationship(back_populates="keywords")

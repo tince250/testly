@@ -1,4 +1,5 @@
 import os
+from parse_keywords import parse_keywords
 from dotenv import load_dotenv
 from llama_parse import LlamaParse
 from llama_index.core import SimpleDirectoryReader, Document, VectorStoreIndex
@@ -15,10 +16,10 @@ extensions = {
 }
 
 def parse_document(doc_path: str, result_type: str = "text") -> None:
-    
+    """Parses a document and processes keywords and their hierarchy."""
     parser = LlamaParse(
         language="en",
-        parsing_instruction = "You are parsing educational materials.",
+        parsing_instruction="You are parsing educational materials.",
         result_type=result_type  # "markdown"/"text"
     )
 
@@ -30,7 +31,8 @@ def parse_document(doc_path: str, result_type: str = "text") -> None:
 
     combined_markdown = "\n\n".join([doc.text for doc in documents if isinstance(doc, Document)])
 
-    print(query_llm(combined_markdown))
+    res = query_llm(combined_markdown)
+    print(res)
+    parse_keywords(res)
 
-parse_document("data/cs110-lecture-1-shorter.pdf")
-
+#parse_document("data/cs110-lecture-1-shorter.pdf")

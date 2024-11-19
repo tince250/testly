@@ -2,12 +2,12 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from model.database import engine
 from sqlmodel import SQLModel
-
-from model.question import Question, MultipleChoiceQuestion, DefinitionQuestion
+from model.question import Question
 from model.keyword import Keyword, KeywordHierarchy
 from model.course import Course, CourseMaterial
 from model.user import UserCourseLink, User
 from model.test import UserTestLink, Test
+from parse_materials import parse_document 
 
 app = FastAPI()
 
@@ -33,3 +33,8 @@ async def create_item(item: Item):
     item_dict = item.dict()
     item_dict["total_price"] = item.price + (item.tax or 0)
     return item_dict
+
+@app.get("/parse_document")
+async def mock_parse_document():
+    parse_document("data/cs110-lecture-1-shorter.pdf") 
+    return {"message": "Document parsed successfully"}
