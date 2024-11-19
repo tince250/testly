@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlmodel import Session, select
 from model.question import Question
 from model.keyword import Keyword, KeywordHierarchy
-from model.course import Course, CourseMaterial
+from model.course import Course, CourseMaterial, CourseMaterialKeywordLink
 from model.user import UserCourseLink, User
 from model.test import UserTestLink, Test
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -36,7 +36,7 @@ class KeywordRepository:
 
     async def update_keyword(self, keyword_id: int, name: Optional[str] = None, definition: Optional[str] = None) -> Optional[Keyword]:
         """Updates an existing keyword."""
-        keyword = self.get_keyword_by_id(keyword_id)
+        keyword = await self.get_keyword_by_id(keyword_id)
         if not keyword:
             return None
         if name:
@@ -50,7 +50,7 @@ class KeywordRepository:
 
     async def delete_keyword(self, keyword_id: int) -> bool:
         """Deletes a keyword by its ID."""
-        keyword = self.get_keyword_by_id(keyword_id)
+        keyword = await self.get_keyword_by_id(keyword_id)
         if not keyword:
             return False
         self.session.delete(keyword)
@@ -81,8 +81,8 @@ class KeywordRepository:
 
     async def add_keyword_to_hierarchy(self, hierarchy_id: int, keyword_id: int) -> Optional[KeywordHierarchy]:
         """Adds a keyword to a hierarchy."""
-        hierarchy = self.get_hierarchy_by_id(hierarchy_id)
-        keyword = self.get_keyword_by_id(keyword_id)
+        hierarchy = await self.get_hierarchy_by_id(hierarchy_id)
+        keyword = await self.get_keyword_by_id(keyword_id)
         if not hierarchy or not keyword:
             return None
         hierarchy.keywords.append(keyword)
@@ -93,7 +93,7 @@ class KeywordRepository:
 
     async def delete_hierarchy(self, hierarchy_id: int) -> bool:
         """Deletes a keyword hierarchy."""
-        hierarchy = self.get_hierarchy_by_id(hierarchy_id)
+        hierarchy = await self.get_hierarchy_by_id(hierarchy_id)
         if not hierarchy:
             return False
         self.session.delete(hierarchy)
@@ -126,7 +126,7 @@ class CourseRepository:
         return result.scalars().all()
 
     async def update_course(self, course_id: int, name: Optional[str] = None, keyword_hierarchy_id: Optional[int] = None) -> Optional[Course]:
-        course = self.get_course_by_id(course_id)
+        course = await self.get_course_by_id(course_id)
         if not course:
             return None
         if name:
@@ -139,7 +139,7 @@ class CourseRepository:
         return course
 
     async def add_material_to_course(self, course_id: int, material: CourseMaterial) -> Optional[Course]:
-        course = self.get_course_by_id(course_id)
+        course = await self.get_course_by_id(course_id)
         if not course:
             return None
         material.course_id = course.id
@@ -149,7 +149,7 @@ class CourseRepository:
         return course
 
     async def delete_course(self, course_id: int) -> bool:
-        course = self.get_course_by_id(course_id)
+        course = await self.get_course_by_id(course_id)
         if not course:
             return False
         self.session.delete(course)
@@ -191,7 +191,7 @@ class CourseRepository:
         return result.scalars().first()
 
     async def update_course_material(self, material_id: int, title: Optional[str] = None) -> Optional[CourseMaterial]:
-        material = self.get_course_material_by_id(material_id)
+        material = await self.get_course_material_by_id(material_id)
         if not material:
             return None
         if title:
@@ -200,6 +200,16 @@ class CourseRepository:
         await self.session.commit()
         await self.session.refresh(material)
         return material
+    
+    async def add_keywords_to_material(self, new_material_id:str, keywords: List[Keyword]) -> None:
+        for keyword in keywords:
+            material_keyword_link = CourseMaterialKeywordLink(
+                coursematerial_id=new_material_id,
+                keyword_id=keyword.id
+            )
+            self.session.add(material_keyword_link)
+        
+        await self.session.commit()
     
 class TestRepository:
     """Handles CRUD operations for the Test model."""
@@ -220,7 +230,7 @@ class TestRepository:
         return result.scalars().first()
 
     async def update_test(self, test_id: int, title: Optional[str] = None) -> Optional[Test]:
-        test = self.get_test_by_id(test_id)
+        test = await self.get_test_by_id(test_id)
         if not test:
             return None
         if title:
@@ -231,7 +241,7 @@ class TestRepository:
         return test
 
     async def add_question_to_test(self, test_id: int, question: Question) -> Optional[Test]:
-        test = self.get_test_by_id(test_id)
+        test = await self.get_test_by_id(test_id)
         if not test:
             return None
         question.test_id = test.id
@@ -241,8 +251,8 @@ class TestRepository:
         return test
 
     async def remove_question_from_test(self, test_id: int, question_id: int) -> Optional[Test]:
-        test = self.get_test_by_id(test_id)
-        question = self.get_question_by_id(question_id)
+        test = await self.get_test_by_id(test_id)
+        question = await self.get_question_by_id(question_id)
         if not test or not question or question.test_id != test.id:
             return None
         question.test_id = None
@@ -255,7 +265,7 @@ class TestRepository:
         link = UserTestLink(user_id=user_id, test_id=test_id)
         self.session.add(link)
         await self.session.commit()
-        return self.get_test_by_id(test_id)
+        return await self.get_test_by_id(test_id)
     
 class QuestionRepository:
     """Handles CRUD operations for the Question model."""
@@ -276,7 +286,7 @@ class QuestionRepository:
         return result.scalars().first()
 
     async def update_question(self, question_id: int, text: Optional[str] = None, correct_answer: Optional[str] = None, choices: Optional[List[str]] = None) -> Optional[Question]:
-        question = self.get_question_by_id(question_id)
+        question = await self.get_question_by_id(question_id)
         if not question:
             return None
         if text:
@@ -291,7 +301,7 @@ class QuestionRepository:
         return question
 
     async def delete_question(self, question_id: int) -> bool:
-        question = self.get_question_by_id(question_id)
+        question = await self.get_question_by_id(question_id)
         if not question:
             return False
         self.session.delete(question)
@@ -317,7 +327,7 @@ class UserRepository:
         return result.scalars().first()
 
     async def update_user(self, user_id: int, email: Optional[str] = None, password: Optional[str] = None, name: Optional[str] = None, lastname: Optional[str] = None) -> Optional[User]:
-        user = self.get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             return None
         if email:
@@ -337,7 +347,7 @@ class UserRepository:
         link = UserCourseLink(user_id=user_id, course_id=course_id)
         self.session.add(link)
         await self.session.commit()
-        return self.get_user_by_id(user_id)
+        return await self.get_user_by_id(user_id)
 
     async def remove_course_from_user(self, user_id: int, course_id: int) -> Optional[User]:
         statement = select(UserCourseLink).where(UserCourseLink.user_id == user_id, UserCourseLink.course_id == course_id)
@@ -346,10 +356,10 @@ class UserRepository:
             return None
         self.session.delete(link)
         await self.session.commit()
-        return self.get_user_by_id(user_id)
+        return await self.get_user_by_id(user_id)
 
     async def delete_user(self, user_id: int) -> bool:
-        user = self.get_user_by_id(user_id)
+        user = await self.get_user_by_id(user_id)
         if not user:
             return False
         self.session.delete(user)

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from model.database import engine
 from sqlmodel import SQLModel
@@ -7,7 +7,7 @@ from model.keyword import Keyword, KeywordHierarchy
 from model.course import Course, CourseMaterial
 from model.user import UserCourseLink, User
 from model.test import UserTestLink, Test
-from parse_materials import parse_document 
+from parse_materials import parse_document, parse_materials 
 from repositories import KeywordRepository
 
 app = FastAPI()
@@ -37,3 +37,7 @@ async def create_item(item: Item):
 async def mock_parse_document():
     await parse_document("data/cs110-lecture-1-shorter.pdf") 
     return {"message": "Document parsed successfully"}
+
+@app.post("/courses/{course_id}/upload-material")
+async def upload_material(course_id: int, doc_path: str):
+    await parse_materials(course_id, doc_path)
