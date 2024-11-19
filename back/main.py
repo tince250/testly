@@ -21,14 +21,12 @@ async def on_startup():
 async def read_root():
     return {"message": "Hello, World!"}
 
-# Define a sample data model
 class Item(BaseModel):
     name: str
     description: str | None = None
     price: float
     tax: float | None = None
 
-# Create a POST route with JSON response
 @app.post("/items/")
 async def create_item(item: Item):
     item_dict = item.dict()
