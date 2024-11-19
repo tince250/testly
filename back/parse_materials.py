@@ -15,7 +15,7 @@ extensions = {
     "markdown": ".md"
 }
 
-def parse_document(doc_path: str, result_type: str = "text") -> None:
+async def parse_document(doc_path: str, result_type: str = "text") -> None:
     """Parses a document and processes keywords and their hierarchy."""
     parser = LlamaParse(
         language="en",
@@ -33,6 +33,4 @@ def parse_document(doc_path: str, result_type: str = "text") -> None:
 
     res = query_llm(combined_markdown)
     print(res)
-    parse_keywords(res)
-
-#parse_document("data/cs110-lecture-1-shorter.pdf")
+    await parse_keywords(res)
