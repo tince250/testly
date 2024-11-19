@@ -34,5 +34,3 @@ def parse_document(doc_path: str, result_type: str = "text") -> None:
     res = query_llm(combined_markdown)
     print(res)
     parse_keywords(res)
-
-#parse_document("data/cs110-lecture-1-shorter.pdf")

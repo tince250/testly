@@ -20,14 +20,12 @@ async def on_startup():
 async def read_root():
     return {"message": "Hello, World!"}
 
-# Define a sample data model
 class Item(BaseModel):
     name: str
     description: str | None = None
     price: float
     tax: float | None = None
 
-# Create a POST route with JSON response
 @app.post("/items/")
 async def create_item(item: Item):
     item_dict = item.dict()
@@ -36,5 +34,5 @@ async def create_item(item: Item):
 
 @app.get("/parse_document")
 async def mock_parse_document():
-    parse_document("data/cs110-lecture-1-shorter.pdf") 
+    parse_document("data/Module 27- World War II-5-10-shorter.pdf") 
     return {"message": "Document parsed successfully"}
