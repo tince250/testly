@@ -24,7 +24,6 @@ extensions = {
 DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_async_engine(DATABASE_URL, echo=True)
 
-# Async session factory
 async_session_maker = sessionmaker(
     bind=engine, expire_on_commit=False, class_=AsyncSession
 )

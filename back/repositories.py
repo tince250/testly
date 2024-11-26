@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 from model.question import Question
 from model.keyword import Keyword, KeywordHierarchy
 from model.course import Course, CourseMaterial, CourseMaterialKeywordLink
-from model.user import UserCourseLink, User
+from model.user import UserCourseLink, User, UserRole
 from model.test import UserTestLink, Test
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
@@ -33,6 +33,16 @@ class KeywordRepository:
         statement = select(Keyword)
         result = await self.session.execute(statement)
         return result.scalars().all()
+    
+    async def get_root_by_hierarchy_id(self, hierarchy_id: int) -> Keyword:
+        """Fetches all keywords for a specific hierarchy ID."""
+        statement = (
+            select(Keyword)
+            .join(KeywordHierarchy, Keyword.hierarchy)
+            .where(KeywordHierarchy.id == hierarchy_id)
+        )
+        result = await self.session.execute(statement)
+        return result.scalars().first()
 
     async def update_keyword(self, keyword_id: int, name: Optional[str] = None, definition: Optional[str] = None) -> Optional[Keyword]:
         """Updates an existing keyword."""
@@ -53,7 +63,7 @@ class KeywordRepository:
         keyword = await self.get_keyword_by_id(keyword_id)
         if not keyword:
             return False
-        self.session.delete(keyword)
+        await self.session.delete(keyword)
         await self.session.commit()
         return True
 
@@ -96,7 +106,7 @@ class KeywordRepository:
         hierarchy = await self.get_hierarchy_by_id(hierarchy_id)
         if not hierarchy:
             return False
-        self.session.delete(hierarchy)
+        await self.session.delete(hierarchy)
         await self.session.commit()
         return True
        
@@ -152,7 +162,7 @@ class CourseRepository:
         course = await self.get_course_by_id(course_id)
         if not course:
             return False
-        self.session.delete(course)
+        await self.session.delete(course)
         await self.session.commit()
         return True
     
@@ -304,7 +314,7 @@ class QuestionRepository:
         question = await self.get_question_by_id(question_id)
         if not question:
             return False
-        self.session.delete(question)
+        await self.session.delete(question)
         await self.session.commit()
         return True
 
@@ -314,7 +324,7 @@ class UserRepository:
     def __init__(self, session: Session):
         self.session = session
 
-    async def create_user(self, email: str, password: str, name: str, lastname: str, role: str) -> User:
+    async def create_user(self, email: str, password: str, name: str, lastname: str, role: UserRole) -> User:
         user = User(email=email, password=password, name=name, lastname=lastname, role=role)
         self.session.add(user)
         await self.session.commit()
@@ -323,6 +333,11 @@ class UserRepository:
 
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
         statement = select(User).where(User.id == user_id)
+        result = await self.session.execute(statement)
+        return result.scalars().first()
+    
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        statement = select(User).where(User.email == email)
         result = await self.session.execute(statement)
         return result.scalars().first()
 
@@ -351,10 +366,13 @@ class UserRepository:
 
     async def remove_course_from_user(self, user_id: int, course_id: int) -> Optional[User]:
         statement = select(UserCourseLink).where(UserCourseLink.user_id == user_id, UserCourseLink.course_id == course_id)
-        link = self.session.exec(statement).first()
+        result = await self.session.execute(statement)
+        link = result.scalars().first()
         if not link:
+            print("KARA")
             return None
-        self.session.delete(link)
+        print(link)
+        await self.session.delete(link)
         await self.session.commit()
         return await self.get_user_by_id(user_id)
 
@@ -362,7 +380,7 @@ class UserRepository:
         user = await self.get_user_by_id(user_id)
         if not user:
             return False
-        self.session.delete(user)
+        await self.session.delete(user)
         await self.session.commit()
         return True
     
