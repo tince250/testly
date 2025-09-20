@@ -1,11 +1,13 @@
+import os
+import shutil
 from dtos.keyword_dtos import KeywordUpdateDTO
 from services.keyword_service import get_hierarchy, get_hierarchy_keywords, update_keyword
-from services.course_service import create_course, get_all_courses, get_all_materials_for_course, get_course, get_material, remove_from_course, signup_to_course
+from services.course_service import create_course, get_all_courses, get_all_materials_for_course, get_course, get_material, remove_from_course, signup_to_course, delete_course_from_db
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List
 from dtos.user_dtos import Token, UserLogin, UserRegistration
 from services.user_service import create_user, login
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 from model.database import engine
 from sqlmodel import SQLModel
@@ -28,6 +30,9 @@ app.add_middleware(
 )
 
 active_tokens: Dict[str, str] = {}
+
+UPLOAD_DIR = "data/uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 async def get_current_user(token: str) -> dict:
     payload = verify_jwt_token(token)
@@ -91,11 +96,16 @@ async def logout_user(token: str):
     return {"detail": "Logged out successfully"}
 
 @app.post("/courses/{course_id}/upload-material")
-async def upload_material(course_id: int, doc_path: str, token: str):
+async def upload_material(course_id: int, file: UploadFile, token: str):
     current_user = await get_current_user(token)
     if current_user.get("role") != "PROFESSOR":
         raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
-    await parse_materials(course_id, doc_path)
+    
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    await parse_materials(course_id, file_path)
 
 @app.post("/courses", response_model=Course)
 async def create_course_endpoint(name: str, token: str):
@@ -107,6 +117,18 @@ async def create_course_endpoint(name: str, token: str):
         raise HTTPException(status_code=404, detail="Course not found")
 
     return course
+
+@app.delete("/courses/{course_id}")
+async def delete_course(course_id: int, token: str):
+    current_user = await get_current_user(token)
+    if current_user.get("role") != "PROFESSOR":
+        raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
+    
+    deleted = await delete_course_from_db(course_id) 
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Course not found")
+    
+    return {"detail": "Course deleted successfully"}
 
 @app.get("/courses/{course_id}", response_model=Course)
 async def get_course_endpoint(course_id: int, token: str):
@@ -135,7 +157,6 @@ async def get_all_materials_for_course_endpoint(course_id: int, token: str):
     if current_user.get("role") != "STUDENT":
         raise HTTPException(status_code=403, detail="Access forbidden: Student only")
     await signup_to_course(current_user.get("sub"), course_id)
-
 
 @app.post("/courses/{course_id}/remove")
 async def get_all_materials_for_course_endpoint(course_id: int, token: str):

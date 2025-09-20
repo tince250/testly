@@ -63,3 +63,10 @@ async def get_material(material_id: int) -> CourseMaterial:
         course_repo = CourseRepository(session)
         material = await course_repo.get_course_material_by_id(material_id)
         return material
+
+async def delete_course_from_db(course_id: int):
+    course = await get_course(course_id)
+    if not course:
+        return False
+    await course.delete()
+    return True
