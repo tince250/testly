@@ -1,25 +1,35 @@
 import os
 from dotenv import load_dotenv
 from groq import Groq
+from utils import load_prompts
 
 load_dotenv()
+prompts = load_prompts('prompts.yaml')
 
 client = Groq(
     api_key=os.getenv("GROQ_API_KEY"),
 )
 
-def query_llm(message: str) -> str:
+def build_llm_messages(version: str, message: str, course: str) -> list:
+    """
+    Fetch the appropriate prompt version and format the LLM messages.
+    """
+    if version not in prompts:
+        raise ValueError(f"Prompt version '{version}' not found in the loaded prompts.")
+    
+    system_prompt = prompts[version]['system']
+    user_prompt = prompts[version]['user'].format(message=message, course=course)
+
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+def query_llm(message: str, course:str = "History", version:str = "v3") -> str:
+    messages = build_llm_messages(version, message, course)
+
     chat_completion = client.chat.completions.create(
-        messages=[
-             {
-            "role": "system",
-            "content": "You are a education specialist assistant. Your task is to extract keywords, their definitons and relations to other kewords from the given course materials. Each course has its hierarhical structure in a form of graph, where each node is a keyword that has (name, definition, children nodes). Children nodes are nodes that are in 'sub-topic' relation to the parent node. Return list of keyword nodes as a JSON array."
-            },
-            {
-                "role": "user",
-                "content": f"Extract keywords from this document: {message}",
-            }
-        ],
+        messages=messages,
         model="llama3-8b-8192",
     )
 
