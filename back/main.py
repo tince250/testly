@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List
 from dtos.user_dtos import Token, UserLogin, UserRegistration
 from services.user_service import create_user, login
+from dtos.test_dtos import TestCreateDTO, TestResponseDTO
+from services.test_service import create_test
 from fastapi import FastAPI, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 from model.database import engine
@@ -19,6 +21,7 @@ from model.test import UserTestLink, Test
 from parse_materials import parse_document, parse_materials 
 from repositories import KeywordRepository
 from jwt_token import verify_jwt_token, create_jwt_token
+from seed import seed_if_empty
 
 app = FastAPI()
 app.add_middleware(
@@ -44,6 +47,7 @@ async def get_current_user(token: str) -> dict:
 async def on_startup():
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+    await seed_if_empty()
 
 @app.get("/")
 async def read_root():
@@ -193,3 +197,10 @@ async def get_hierarchy_keywords_endpoint(hierarchy_id: int, token: str):
     if not current_user:
         raise HTTPException(status_code=401, detail="Invalid token")
     return await get_hierarchy_keywords(hierarchy_id)
+
+@app.post("/courses/{course_id}/tests", response_model=TestResponseDTO)
+async def create_test_endpoint(course_id: int, test_data: TestCreateDTO, token: str):
+    current_user = await get_current_user(token)
+    if current_user.get("role") != "PROFESSOR":
+        raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
+    return await create_test(course_id, current_user.get("sub"), test_data)

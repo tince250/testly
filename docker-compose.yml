@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16
+    container_name: testly-db
+    environment:
+      POSTGRES_USER: testly
+      POSTGRES_PASSWORD: 12345678
+      POSTGRES_DB: testly_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - testly-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testly -d testly_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  testly-db-data:

@@ -1,11 +1,11 @@
 import os
 from typing import List, Optional
 from sqlmodel import Session, select
-from model.question import Question
+from model.question import Question, QuestionType
 from model.keyword import Keyword, KeywordHierarchy
 from model.course import Course, CourseMaterial, CourseMaterialKeywordLink
 from model.user import UserCourseLink, User, UserRole
-from model.test import UserTestLink, Test
+from model.test import UserTestLink, KeywordTestLink, Test
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 class KeywordRepository:
@@ -43,6 +43,18 @@ class KeywordRepository:
         )
         result = await self.session.execute(statement)
         return result.scalars().first()
+
+    async def get_all_descendant_keywords(self, root_id: int) -> List[Keyword]:
+        """Fetches every keyword under root_id (excluding the root itself), level by level."""
+        all_keywords: List[Keyword] = []
+        current_level_ids = [root_id]
+        while current_level_ids:
+            statement = select(Keyword).where(Keyword.parent_id.in_(current_level_ids))
+            result = await self.session.execute(statement)
+            children = result.scalars().all()
+            all_keywords.extend(children)
+            current_level_ids = [keyword.id for keyword in children]
+        return all_keywords
 
     async def update_keyword(self, keyword_id: int, name: Optional[str] = None, definition: Optional[str] = None) -> Optional[Keyword]:
         """Updates an existing keyword."""
@@ -276,15 +288,21 @@ class TestRepository:
         self.session.add(link)
         await self.session.commit()
         return await self.get_test_by_id(test_id)
-    
+
+    async def add_keywords_to_test(self, test_id: int, keywords: List[Keyword]) -> None:
+        for keyword in keywords:
+            link = KeywordTestLink(test_id=test_id, keyword_id=keyword.id)
+            self.session.add(link)
+        await self.session.commit()
+
 class QuestionRepository:
     """Handles CRUD operations for the Question model."""
 
     def __init__(self, session: Session):
         self.session = session
     
-    async def create_question(self, text: str, correct_answer: str, choices: List[str], test_id: Optional[int]) -> Question:
-        question = Question(text=text, correct_answer=correct_answer, choices=choices, test_id=test_id)
+    async def create_question(self, text: str, correct_answer: str, choices: List[str], test_id: Optional[int], type: QuestionType) -> Question:
+        question = Question(text=text, correct_answer=correct_answer, choices=choices, test_id=test_id, type=type)
         self.session.add(question)
         await self.session.commit()
         await self.session.refresh(question)
