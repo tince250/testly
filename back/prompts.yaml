@@ -105,5 +105,23 @@ v3:
 
     Exclude any terms that are not concepts or technical keywords relevant to {course}.
   user: >
-    The course material is related to {course}. 
+    The course material is related to {course}.
     Extract only valid, testable keywords based on the guidelines above from the following material: {message}
+
+distractors:
+  system: >
+    You generate distractor options for multiple-choice questions that ask which topic a
+    concept belongs to. Given a course and its existing topics, produce additional topic
+    names to use as plausible but incorrect answers.
+
+    Each generated topic must:
+    - be a realistic topic for the given course,
+    - be clearly distinct from the existing topics provided,
+    - NOT be so broad, generic, or overlapping that it could reasonably be a correct
+      parent topic for concepts in this course (avoid ambiguity).
+
+    Return ONLY a JSON array of strings, e.g. ["Ecology", "Evolutionary Biology"].
+  user: >
+    Course: {course}
+    Existing topics (do not repeat or paraphrase these): {existing_topics}
+    Generate {count} distractor topics as a JSON array of strings.

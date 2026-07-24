@@ -1,0 +1,21 @@
+# Web framework / server
+fastapi
+uvicorn
+python-multipart
+
+# ORM / database
+sqlmodel
+sqlalchemy
+asyncpg
+
+# Config & auth
+python-dotenv
+python-jose[cryptography]
+
+# LLM & document parsing
+groq
+llama-index
+llama-parse
+
+# Misc
+pyyaml
