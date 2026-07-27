@@ -1,10 +1,17 @@
+from enum import Enum
 from typing import List, Optional
 from sqlmodel import SQLModel, Field, Relationship
+
+class AttemptStatus(str, Enum):
+    GRADING = "GRADING"
+    GRADED = "GRADED"
 
 class TestAttempt(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     test_id: Optional[int] = Field(default=None, foreign_key="test.id")
     student_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    status: AttemptStatus = Field(default=AttemptStatus.GRADING)
+    score: Optional[float] = Field(default=None)
 
     answers: List["Answer"] = Relationship(back_populates="attempt")
 
@@ -13,5 +20,7 @@ class Answer(SQLModel, table=True):
     attempt_id: Optional[int] = Field(default=None, foreign_key="testattempt.id")
     question_id: Optional[int] = Field(default=None, foreign_key="question.id")
     answer: str
+    is_correct: Optional[bool] = Field(default=None)
+    feedback: Optional[str] = Field(default=None)
 
     attempt: Optional[TestAttempt] = Relationship(back_populates="answers")

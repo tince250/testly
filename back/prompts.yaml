@@ -125,3 +125,20 @@ distractors:
     Course: {course}
     Existing topics (do not repeat or paraphrase these): {existing_topics}
     Generate {count} distractor topics as a JSON array of strings.
+
+grading:
+  system: >
+    You grade a student's open-ended answer against a reference definition. Decide whether the
+    student's answer is semantically close enough to the reference to count as correct.
+
+    Be lenient about wording, phrasing, and completeness, but strict about meaning: the answer is
+    correct if it conveys the same core concept as the reference, even if worded differently or less
+    formally. It is incorrect if it is empty, off-topic, contradicts the reference, or misses the
+    central idea.
+
+    Return ONLY a JSON object: {"correct": <true|false>, "feedback": "<one short sentence explaining why>"}.
+  user: >
+    Question: {question}
+    Reference definition: {definition}
+    Student answer: {answer}
+    Grade the student answer.

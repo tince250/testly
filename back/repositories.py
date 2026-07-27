@@ -468,3 +468,23 @@ class AttemptRepository:
         statement = select(TestAttempt.test_id).where(TestAttempt.student_id == student_id)
         result = await self.session.execute(statement)
         return result.scalars().all()
+
+    async def get_attempt_by_id(self, attempt_id: int) -> Optional[TestAttempt]:
+        statement = select(TestAttempt).where(TestAttempt.id == attempt_id)
+        result = await self.session.execute(statement)
+        return result.scalars().first()
+
+    async def get_answers_for_attempt(self, attempt_id: int) -> List[Answer]:
+        statement = select(Answer).where(Answer.attempt_id == attempt_id)
+        result = await self.session.execute(statement)
+        return result.scalars().all()
+
+    async def get_attempts_for_test(self, test_id: int) -> List[TestAttempt]:
+        statement = select(TestAttempt).where(TestAttempt.test_id == test_id)
+        result = await self.session.execute(statement)
+        return result.scalars().all()
+
+    async def get_answer_by_id(self, answer_id: int) -> Optional[Answer]:
+        statement = select(Answer).where(Answer.id == answer_id)
+        result = await self.session.execute(statement)
+        return result.scalars().first()

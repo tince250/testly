@@ -1,6 +1,7 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from model.question import QuestionType
+from model.attempt import AttemptStatus
 
 class StudentQuestionDTO(BaseModel):
     id: int
@@ -30,3 +31,31 @@ class AttemptResultDTO(BaseModel):
     attempt_id: int
     test_id: int
     submitted: bool
+
+class QuestionResultDTO(BaseModel):
+    question_id: int
+    text: str
+    type: QuestionType
+    student_answer: Optional[str]
+    correct_answer: str
+    is_correct: Optional[bool]
+    feedback: Optional[str]
+
+class AttemptDetailDTO(BaseModel):
+    attempt_id: int
+    test_id: int
+    status: AttemptStatus
+    score: Optional[float]
+    correct_count: Optional[int]
+    total_questions: int
+    results: List[QuestionResultDTO]
+
+class AttemptListItemDTO(BaseModel):
+    attempt_id: int
+    student_email: str
+    status: AttemptStatus
+    score: Optional[float]
+
+class GradeOverrideDTO(BaseModel):
+    is_correct: bool
+    feedback: Optional[str] = None
