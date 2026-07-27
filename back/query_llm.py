@@ -60,3 +60,20 @@ def generate_distractor_topics(course: str, existing_topics: List[str], count: i
 
     topics = json.loads(content[start:end])
     return [topic for topic in topics if isinstance(topic, str)]
+
+def grade_open_answer(question: str, definition: str, answer: str) -> dict:
+    """Ask the LLM whether the student's answer matches the reference definition. Returns {correct, feedback}."""
+    prompt = prompts["grading"]
+    messages = [
+        {"role": "system", "content": prompt["system"]},
+        {"role": "user", "content": prompt["user"].format(
+            question=question, definition=definition, answer=answer
+        )},
+    ]
+
+    chat_completion = client.chat.completions.create(messages=messages, model=MODEL)
+    content = chat_completion.choices[0].message.content
+
+    start, end = content.find("{"), content.rfind("}") + 1
+    data = json.loads(content[start:end])
+    return {"correct": bool(data["correct"]), "feedback": str(data.get("feedback", ""))}

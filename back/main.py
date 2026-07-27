@@ -9,7 +9,10 @@ from dtos.user_dtos import Token, UserLogin, UserRegistration
 from services.user_service import create_user, login
 from dtos.test_dtos import TestCreateDTO, TestResponseDTO
 from services.test_service import create_test
-from fastapi import FastAPI, Depends, HTTPException, UploadFile
+from dtos.attempt_dtos import AttemptDetailDTO, AttemptListItemDTO, AttemptResultDTO, GradeOverrideDTO, StudentTestDTO, SubmitTestDTO, TestListItemDTO
+from services.take_test_service import get_course_tests_for_student, get_test_for_student, submit_test
+from services.grading_service import get_attempt_result, get_test_attempts, grade_attempt, override_grade
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, BackgroundTasks
 from pydantic import BaseModel
 from model.database import engine
 from sqlmodel import SQLModel
@@ -18,6 +21,7 @@ from model.keyword import Keyword, KeywordHierarchy
 from model.course import Course, CourseMaterial
 from model.user import UserCourseLink, User
 from model.test import UserTestLink, Test
+from model.attempt import TestAttempt, Answer
 from parse_materials import parse_document, parse_materials 
 from repositories import KeywordRepository
 from jwt_token import verify_jwt_token, create_jwt_token
@@ -204,3 +208,45 @@ async def create_test_endpoint(course_id: int, test_data: TestCreateDTO, token: 
     if current_user.get("role") != "PROFESSOR":
         raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
     return await create_test(course_id, current_user.get("sub"), test_data)
+
+@app.get("/courses/{course_id}/tests", response_model=List[TestListItemDTO])
+async def get_course_tests_endpoint(course_id: int, token: str):
+    current_user = await get_current_user(token)
+    if current_user.get("role") != "STUDENT":
+        raise HTTPException(status_code=403, detail="Access forbidden: Students only")
+    return await get_course_tests_for_student(course_id, current_user.get("sub"))
+
+@app.get("/tests/{test_id}", response_model=StudentTestDTO)
+async def get_test_endpoint(test_id: int, token: str):
+    current_user = await get_current_user(token)
+    if current_user.get("role") != "STUDENT":
+        raise HTTPException(status_code=403, detail="Access forbidden: Students only")
+    return await get_test_for_student(test_id, current_user.get("sub"))
+
+@app.post("/tests/{test_id}/submit", response_model=AttemptResultDTO)
+async def submit_test_endpoint(test_id: int, submission: SubmitTestDTO, token: str, background_tasks: BackgroundTasks):
+    current_user = await get_current_user(token)
+    if current_user.get("role") != "STUDENT":
+        raise HTTPException(status_code=403, detail="Access forbidden: Students only")
+    result = await submit_test(test_id, current_user.get("sub"), submission)
+    background_tasks.add_task(grade_attempt, result.attempt_id)
+    return result
+
+@app.get("/tests/{test_id}/attempts", response_model=List[AttemptListItemDTO])
+async def get_test_attempts_endpoint(test_id: int, token: str):
+    current_user = await get_current_user(token)
+    if current_user.get("role") != "PROFESSOR":
+        raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
+    return await get_test_attempts(test_id, current_user.get("sub"))
+
+@app.get("/attempts/{attempt_id}/result", response_model=AttemptDetailDTO)
+async def get_attempt_result_endpoint(attempt_id: int, token: str):
+    current_user = await get_current_user(token)
+    return await get_attempt_result(attempt_id, current_user.get("sub"))
+
+@app.patch("/attempts/{attempt_id}/answers/{answer_id}/grade", response_model=AttemptDetailDTO)
+async def override_grade_endpoint(attempt_id: int, answer_id: int, data: GradeOverrideDTO, token: str):
+    current_user = await get_current_user(token)
+    if current_user.get("role") != "PROFESSOR":
+        raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
+    return await override_grade(answer_id, current_user.get("sub"), data)

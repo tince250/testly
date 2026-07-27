@@ -6,6 +6,8 @@ from model.keyword import Keyword, KeywordHierarchy
 from model.course import Course, CourseMaterial, CourseMaterialKeywordLink
 from model.user import UserCourseLink, User, UserRole
 from model.test import UserTestLink, KeywordTestLink, Test
+from model.attempt import TestAttempt, Answer
+from dtos.attempt_dtos import AnswerSubmitDTO
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 class KeywordRepository:
@@ -313,6 +315,11 @@ class QuestionRepository:
         result = await self.session.execute(statement)
         return result.scalars().first()
 
+    async def get_questions_for_test(self, test_id: int) -> List[Question]:
+        statement = select(Question).where(Question.test_id == test_id)
+        result = await self.session.execute(statement)
+        return result.scalars().all()
+
     async def update_question(self, question_id: int, text: Optional[str] = None, correct_answer: Optional[str] = None, choices: Optional[List[str]] = None) -> Optional[Question]:
         question = await self.get_question_by_id(question_id)
         if not question:
@@ -424,3 +431,60 @@ class UserRepository:
         )
         result = await self.session.execute(statement)
         return result.scalars().all()
+
+    async def is_enrolled(self, user_id: int, course_id: int) -> bool:
+        statement = select(UserCourseLink).where(
+            UserCourseLink.user_id == user_id, UserCourseLink.course_id == course_id
+        )
+        result = await self.session.execute(statement)
+        return result.scalars().first() is not None
+
+class AttemptRepository:
+    """Handles CRUD operations for the TestAttempt and Answer models."""
+
+    def __init__(self, session: Session):
+        self.session = session
+
+    async def create_attempt(self, test_id: int, student_id: int) -> TestAttempt:
+        attempt = TestAttempt(test_id=test_id, student_id=student_id)
+        self.session.add(attempt)
+        await self.session.commit()
+        await self.session.refresh(attempt)
+        return attempt
+
+    async def get_attempt_for_student_and_test(self, student_id: int, test_id: int) -> Optional[TestAttempt]:
+        statement = select(TestAttempt).where(
+            TestAttempt.student_id == student_id, TestAttempt.test_id == test_id
+        )
+        result = await self.session.execute(statement)
+        return result.scalars().first()
+
+    async def add_answers(self, attempt_id: int, answers: List[AnswerSubmitDTO]) -> None:
+        for answer in answers:
+            self.session.add(Answer(attempt_id=attempt_id, question_id=answer.question_id, answer=answer.answer))
+        await self.session.commit()
+
+    async def get_test_ids_taken_by_student(self, student_id: int) -> List[int]:
+        statement = select(TestAttempt.test_id).where(TestAttempt.student_id == student_id)
+        result = await self.session.execute(statement)
+        return result.scalars().all()
+
+    async def get_attempt_by_id(self, attempt_id: int) -> Optional[TestAttempt]:
+        statement = select(TestAttempt).where(TestAttempt.id == attempt_id)
+        result = await self.session.execute(statement)
+        return result.scalars().first()
+
+    async def get_answers_for_attempt(self, attempt_id: int) -> List[Answer]:
+        statement = select(Answer).where(Answer.attempt_id == attempt_id)
+        result = await self.session.execute(statement)
+        return result.scalars().all()
+
+    async def get_attempts_for_test(self, test_id: int) -> List[TestAttempt]:
+        statement = select(TestAttempt).where(TestAttempt.test_id == test_id)
+        result = await self.session.execute(statement)
+        return result.scalars().all()
+
+    async def get_answer_by_id(self, answer_id: int) -> Optional[Answer]:
+        statement = select(Answer).where(Answer.id == answer_id)
+        result = await self.session.execute(statement)
+        return result.scalars().first()
