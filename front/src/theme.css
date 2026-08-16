@@ -1,0 +1,152 @@
+:root {
+  --page: #F9EFEA;
+  --panel: #FFFFFF;
+  --ink: #2E3A4E;
+  --ink-hover: #1F2A3B;
+  --coral: #F4796B;
+  --coral-hover: #E2604F;
+  --muted: #6B7688;
+  --muted-2: #8A93A3;
+  --muted-3: #A9B0BD;
+  --border: #F0ECEC;
+  --border-2: #EFEBEB;
+  --pink: #FDF3F1;
+  --input-bg: #FCFAFA;
+  --ok-fg: #2F7A66;
+  --ok-bg: #E4F2EE;
+  --neutral-fg: #8A93A3;
+  --neutral-bg: #F1EEEE;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.serif {
+  font-family: 'Newsreader', serif;
+}
+
+a {
+  color: var(--coral);
+  text-decoration: none;
+  font-weight: 700;
+}
+a:hover {
+  color: var(--coral-hover);
+}
+
+input {
+  font-family: inherit;
+}
+::placeholder {
+  color: var(--muted-3);
+}
+
+/* Inputs */
+.field {
+  height: 46px;
+  border: 1px solid #E6E2E4;
+  border-radius: 10px;
+  padding: 0 14px;
+  font-size: 14.5px;
+  color: var(--ink);
+  outline: none;
+  background: var(--input-bg);
+  transition: border-color 120ms ease, background 120ms ease;
+  width: 100%;
+}
+.field:focus {
+  border-color: var(--ink);
+  background: #FFFFFF;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+
+/* Dark primary button */
+.btn-primary {
+  height: 48px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ink);
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--ink-hover);
+  transform: translateY(-1px);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Sidebar / list rows with hover */
+.row-hover {
+  transition: background 120ms ease, color 120ms ease;
+}
+.row-hover:hover {
+  background: #F4F1F1;
+}
+
+/* Course card hover */
+.course-card {
+  transition: box-shadow 160ms ease, transform 160ms ease, border-color 160ms ease;
+}
+.course-card:hover {
+  box-shadow: 0 14px 30px rgba(46, 58, 78, 0.09);
+  transform: translateY(-2px);
+  border-color: #E2DCDC;
+}
+
+.new-course {
+  transition: border-color 160ms ease, color 160ms ease;
+}
+.new-course:hover {
+  border-color: var(--coral);
+  color: var(--coral);
+}
+
+/* Sign-out row: coral affordance on hover (matches the mockup) */
+.signout-row:hover {
+  background: var(--pink);
+  color: var(--coral);
+}
+
+/* Toast */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.toast {
+  animation: toast-in 160ms ease;
+}
+
+/* Indeterminate progress bar — used while material upload/parsing is in flight */
+@keyframes indeterminate {
+  0% { transform: translateX(-60%) scaleX(0.4); }
+  50% { transform: translateX(20%) scaleX(0.6); }
+  100% { transform: translateX(100%) scaleX(0.4); }
+}
+.indeterminate-bar {
+  width: 100%;
+  transform-origin: left;
+  animation: indeterminate 1.3s ease-in-out infinite;
+}
