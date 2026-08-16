@@ -15,6 +15,8 @@ Main functionality:
 - Student test-taking with automatic grading answers
 - Professor tools to review student attempts, override grades, and view per-test statistics
 
+[Demo video](https://youtu.be/xsK1sumTNaM)
+
 ## Backend setup
 
 Prerequisites: Docker (for the database) and Python 3.10+.
