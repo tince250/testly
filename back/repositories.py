@@ -255,13 +255,16 @@ class CourseRepository:
         return material
     
     async def add_keywords_to_material(self, new_material_id:str, keywords: List[Keyword]) -> None:
-        for keyword in keywords:
+        # A keyword can appear more than once in the extracted list (e.g. reused/deduped under two
+        # branches in the same response) — dedupe by id so we don't insert the same link twice.
+        unique_keywords = {keyword.id: keyword for keyword in keywords}.values()
+        for keyword in unique_keywords:
             material_keyword_link = CourseMaterialKeywordLink(
                 coursematerial_id=new_material_id,
                 keyword_id=keyword.id
             )
             self.session.add(material_keyword_link)
-        
+
         await self.session.commit()
     
 class TestRepository:

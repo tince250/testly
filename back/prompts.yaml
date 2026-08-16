@@ -104,6 +104,9 @@ v3:
     ]
 
     Exclude any terms that are not concepts or technical keywords relevant to {course}.
+
+    Make sure you provide a valid JSON response following the above example's format.
+
   user: >
     The course material is related to {course}.
     Extract only valid, testable keywords based on the guidelines above from the following material: {message}
@@ -137,9 +140,19 @@ extraction_with_attachment:
     - Provide short, accurate definitions focusing only on the technical meaning, not contextual details like "this is required for the course."
 
     You will also be given the course's existing keyword hierarchy, as lines of "id: name — definition",
-    indented by depth, with each node's direct existing children listed by id in parentheses. Decide
-    whether the material you're extracting deepens ONE existing concept, is genuinely new, or warrants
-    inserting a new, more specific node between an existing concept and some of its current children.
+    indented by depth, with each node's direct existing children listed by id in parentheses.
+
+    **Deciding "attach_to" — follow these steps in order:**
+    1. Read the entire existing hierarchy first. For each node, ask: "is the material I'm extracting a
+       more specific case, sub-type, or deeper treatment of this node's concept?" A name match or
+       substring relationship is a strong signal — e.g. if the hierarchy has a node named "Tree" and the
+       material is about "Binary Search Trees", a binary search tree IS a kind of tree, so you MUST set
+       "attach_to" to that "Tree" node's id. Do not default to null just because the material also
+       introduces new sub-concepts of its own — those new sub-concepts still nest under the existing node.
+    2. If more than one existing node is a plausible parent, pick the single most specific (deepest) one
+       whose concept the material most directly specializes.
+    3. Only use "attach_to": null when the material is genuinely about a topic unrelated to anything
+       already in the hierarchy — not merely because it also contains new terminology of its own.
 
     Return a JSON object (not a bare array) of this form:
     {
@@ -158,19 +171,49 @@ extraction_with_attachment:
       ]
     }
 
-    Only reference ids that were actually given to you in the existing hierarchy. Use "attach_to": null
-    if the material doesn't clearly belong under any single existing concept — do not force a fit. Only
-    propose "insert_intermediate" when the material clearly justifies a new, more specific grouping;
-    otherwise leave it null. "reparent_existing_children" may be an empty list if none of attach_to's
-    current children belong under the new node. The "keywords" array attaches under
-    "insert_intermediate" if one is given, otherwise directly under "attach_to" (or under a new
-    top-level topic if "attach_to" is null).
+    **Worked example.** Existing hierarchy:
+    1: Data Structures — Root for course: Data Structures (children: 2)
+      2: Tree — A hierarchical data structure of nodes connected by edges. (children: none)
+    Material: "Binary Search Trees. A binary search tree is a tree in which every node has at most two
+    children, and every node's left subtree holds smaller values while its right subtree holds larger
+    ones. Insertion starts at the root and moves left or right until an empty spot is found."
+    Correct response:
+    {
+      "attach_to": 2,
+      "insert_intermediate": null,
+      "keywords": [
+        {
+          "name": "Binary Search Tree",
+          "definition": "A tree in which every node has at most two children, with left-subtree values smaller and right-subtree values larger than the node's own value.",
+          "children": [
+            {
+              "name": "Insertion",
+              "definition": "Adding a node to a binary search tree by comparing the new value to each node and moving left or right until an empty spot is found.",
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+    Note "attach_to" is 2 (the existing "Tree" node), NOT null — even though "Binary Search Tree" and
+    "Insertion" are both new keywords being created under it.
+
+    Make sure to follow this exact response format and don't add anything else into your response.
+
+    Only reference ids that were actually given to you in the existing hierarchy. Only propose
+    "insert_intermediate" when the material clearly justifies a new, more specific grouping between
+    "attach_to" and some of its current children; otherwise leave it null. "reparent_existing_children"
+    may be an empty list if none of attach_to's current children belong under the new node. The
+    "keywords" array attaches under "insert_intermediate" if one is given, otherwise directly under
+    "attach_to" (or under a new top-level topic if "attach_to" is null).
+
+
   user: >
     Course: {course}
     Existing keyword hierarchy:
     {existing_hierarchy}
 
-    Extract keywords from the following material as described above: {message}
+    Extract keywords from the following material as described above, make sure to follow the correct response format as listed in the example above: {message}
 
 grading:
   system: >

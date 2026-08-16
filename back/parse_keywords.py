@@ -49,7 +49,7 @@ async def parse_keywords(response: Union[str, dict], course: Course, existing_hi
         attach_to_id = None
         insert_intermediate = None
     else:
-        data = response.get("keywords", [])
+        data = response.get("keywords", []) or []
         attach_to_id = response.get("attach_to")
         insert_intermediate = response.get("insert_intermediate")
 
@@ -95,23 +95,33 @@ async def parse_keywords(response: Union[str, dict], course: Course, existing_hi
             root_id = parent_id
 
         async def process_keyword(item, parent_id=None):
-            """Recursively processes a keyword, reusing an existing node of the same name if one exists."""
+            """Recursively processes a keyword, reusing an existing node of the same name if one exists.
+
+            Skips an item missing 'name'/'definition' — the extraction LLM occasionally emits a
+            malformed item, and one bad item shouldn't fail the whole upload.
+            """
+            name = item.get("name")
+            if not name:
+                return
             actual_parent_id = parent_id or root_id
-            name_key = _normalize(item["name"])
+            name_key = _normalize(name)
             existing = existing_by_name.get(name_key)
 
             if existing:
                 keyword = existing
                 keywords.append(keyword)
             else:
+                definition = item.get("definition")
+                if not definition:
+                    return
                 keyword = await keyword_repo.create_keyword(
-                    name=item["name"],
-                    definition=item["definition"],
+                    name=name,
+                    definition=definition,
                     parent_id=actual_parent_id
                 )
                 keywords.append(keyword)
 
-            for child in item.get("children", []):
+            for child in item.get("children", []) or []:
                 await process_keyword(child, parent_id=keyword.id)
 
         for item in data:

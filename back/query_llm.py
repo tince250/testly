@@ -64,7 +64,7 @@ def generate_distractor_topics(course: str, existing_topics: List[str], count: i
 def extract_keywords_with_attachment(text: str, course: str, existing_hierarchy: str) -> dict:
     """Extract keywords from material, given the course's existing hierarchy as context.
 
-    Returns {"attach_to": int|None, "insert_intermediate": dict|None, "keywords": [...]}.
+    Retries once on a malformed response — the model occasionally emits invalid JSON for this prompt.
     """
     prompt = prompts["extraction_with_attachment"]
     messages = [
@@ -74,19 +74,27 @@ def extract_keywords_with_attachment(text: str, course: str, existing_hierarchy:
         )},
     ]
 
-    chat_completion = client.chat.completions.create(messages=messages, model=MODEL)
-    content = chat_completion.choices[0].message.content
+    last_error = None
+    for _ in range(2):
+        chat_completion = client.chat.completions.create(messages=messages, model=MODEL)
+        content = chat_completion.choices[0].message.content
 
-    start, end = content.find("{"), content.rfind("}") + 1
-    if start == -1 or end == 0:
-        raise ValueError("JSON object not found in the response.")
+        start, end = content.find("{"), content.rfind("}") + 1
+        if start == -1 or end == 0:
+            last_error = ValueError("JSON object not found in the response.")
+            continue
+        try:
+            data = json.loads(content[start:end])
+        except json.JSONDecodeError as e:
+            last_error = e
+            continue
 
-    data = json.loads(content[start:end])
-    return {
-        "attach_to": data.get("attach_to"),
-        "insert_intermediate": data.get("insert_intermediate"),
-        "keywords": data.get("keywords", []),
-    }
+        return {
+            "attach_to": data.get("attach_to"),
+            "insert_intermediate": data.get("insert_intermediate"),
+            "keywords": data.get("keywords", []),
+        }
+    raise last_error
 
 def grade_open_answer(question: str, definition: str, answer: str) -> dict:
     """Ask the LLM whether the student's answer matches the reference definition. Returns {correct, feedback}."""
