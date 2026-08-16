@@ -1,8 +1,19 @@
 # testly
 
 Educational app that extracts a hierarchical index of key concepts from course
-materials and lets professors auto-generate tests from it. See `SOTIS specifikacija.pdf`
-for the full project specification.
+materials and lets professors auto-generate tests from it.
+
+Main functionality:
+
+- Course management for professors, with LLM-powered keyword hierarchy extraction from
+  uploaded materials (PDF/DOCX/TXT), including smart attachment of new material into an
+  existing hierarchy
+- Interactive keyword hierarchy visualization (D3 graph) with inline editing
+- Professor-driven student registration and course enrollment
+- Auto-generated tests (matching and open-ended questions), optionally scoped to a
+  hierarchy subtree
+- Student test-taking with automatic grading answers
+- Professor tools to review student attempts, override grades, and view per-test statistics
 
 ## Backend setup
 
