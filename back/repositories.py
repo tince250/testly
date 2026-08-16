@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 from sqlmodel import Session, select
+from sqlalchemy import delete, update
 from model.question import Question, QuestionType
 from model.keyword import Keyword, KeywordHierarchy
 from model.course import Course, CourseMaterial, CourseMaterialKeywordLink
@@ -67,6 +68,17 @@ class KeywordRepository:
             keyword.name = name
         if definition:
             keyword.definition = definition
+        self.session.add(keyword)
+        await self.session.commit()
+        await self.session.refresh(keyword)
+        return keyword
+
+    async def reparent_keyword(self, keyword_id: int, new_parent_id: int) -> Optional[Keyword]:
+        """Moves an existing keyword under a new parent, leaving its name/definition untouched."""
+        keyword = await self.get_keyword_by_id(keyword_id)
+        if not keyword:
+            return None
+        keyword.parent_id = new_parent_id
         self.session.add(keyword)
         await self.session.commit()
         await self.session.refresh(keyword)
@@ -172,10 +184,27 @@ class CourseRepository:
         await self.session.refresh(course)
         return course
 
-    async def delete_course(self, course_id: int) -> bool:
+    async def delete_course(self, course_id: int, hierarchy_id: Optional[int] = None, keyword_ids: Optional[List[int]] = None) -> bool:
         course = await self.get_course_by_id(course_id)
         if not course:
             return False
+        # None of these FKs have ON DELETE CASCADE, so remove dependents in FK-safe order.
+        # (Tests are deleted by the caller first, via TestRepository.delete_test.)
+        await self.session.execute(delete(UserCourseLink).where(UserCourseLink.course_id == course_id))
+        await self.session.execute(delete(CourseMaterialKeywordLink).where(
+            CourseMaterialKeywordLink.coursematerial_id.in_(
+                select(CourseMaterial.id).where(CourseMaterial.course_id == course_id))))
+        await self.session.execute(delete(CourseMaterial).where(CourseMaterial.course_id == course_id))
+        # Break the Course -> hierarchy FK so the hierarchy row can be deleted.
+        course.keyword_hierarchy_id = None
+        self.session.add(course)
+        await self.session.flush()
+        if hierarchy_id:
+            await self.session.execute(delete(KeywordHierarchy).where(KeywordHierarchy.id == hierarchy_id))
+        if keyword_ids:
+            # Break the self-referential parent_id before deleting the keyword rows.
+            await self.session.execute(update(Keyword).where(Keyword.id.in_(keyword_ids)).values(parent_id=None))
+            await self.session.execute(delete(Keyword).where(Keyword.id.in_(keyword_ids)))
         await self.session.delete(course)
         await self.session.commit()
         return True
@@ -296,6 +325,28 @@ class TestRepository:
             link = KeywordTestLink(test_id=test_id, keyword_id=keyword.id)
             self.session.add(link)
         await self.session.commit()
+
+    async def get_keywords_for_test(self, test_id: int) -> List[Keyword]:
+        statement = select(Keyword).join(KeywordTestLink, KeywordTestLink.keyword_id == Keyword.id).where(KeywordTestLink.test_id == test_id)
+        result = await self.session.execute(statement)
+        return result.scalars().all()
+
+    async def delete_test(self, test_id: int) -> bool:
+        test = await self.get_test_by_id(test_id)
+        if not test:
+            return False
+        # Order matters — none of these FKs have ON DELETE CASCADE.
+        # Answers reference both attempts and questions, so they go first.
+        await self.session.execute(
+            delete(Answer).where(Answer.attempt_id.in_(select(TestAttempt.id).where(TestAttempt.test_id == test_id)))
+        )
+        await self.session.execute(delete(TestAttempt).where(TestAttempt.test_id == test_id))
+        await self.session.execute(delete(KeywordTestLink).where(KeywordTestLink.test_id == test_id))
+        await self.session.execute(delete(UserTestLink).where(UserTestLink.test_id == test_id))
+        await self.session.execute(delete(Question).where(Question.test_id == test_id))
+        await self.session.delete(test)
+        await self.session.commit()
+        return True
 
 class QuestionRepository:
     """Handles CRUD operations for the Question model."""
@@ -423,6 +474,18 @@ class UserRepository:
         result = await self.session.execute(statement)
         return result.scalars().all()
 
+    async def get_students_in_courses(self, course_ids: List[int]) -> List[User]:
+        if not course_ids:
+            return []
+        statement = (
+            select(User)
+            .join(UserCourseLink, User.id == UserCourseLink.user_id)
+            .where(UserCourseLink.course_id.in_(course_ids), User.role == UserRole.STUDENT)
+            .distinct()
+        )
+        result = await self.session.execute(statement)
+        return result.scalars().all()
+
     async def get_all_users_taking_test(self, test_id: int) -> List[User]:
         statement = (
             select(User)
@@ -464,11 +527,6 @@ class AttemptRepository:
             self.session.add(Answer(attempt_id=attempt_id, question_id=answer.question_id, answer=answer.answer))
         await self.session.commit()
 
-    async def get_test_ids_taken_by_student(self, student_id: int) -> List[int]:
-        statement = select(TestAttempt.test_id).where(TestAttempt.student_id == student_id)
-        result = await self.session.execute(statement)
-        return result.scalars().all()
-
     async def get_attempt_by_id(self, attempt_id: int) -> Optional[TestAttempt]:
         statement = select(TestAttempt).where(TestAttempt.id == attempt_id)
         result = await self.session.execute(statement)
@@ -481,6 +539,11 @@ class AttemptRepository:
 
     async def get_attempts_for_test(self, test_id: int) -> List[TestAttempt]:
         statement = select(TestAttempt).where(TestAttempt.test_id == test_id)
+        result = await self.session.execute(statement)
+        return result.scalars().all()
+
+    async def get_answers_for_test(self, test_id: int) -> List[Answer]:
+        statement = select(Answer).join(TestAttempt, TestAttempt.id == Answer.attempt_id).where(TestAttempt.test_id == test_id)
         result = await self.session.execute(statement)
         return result.scalars().all()
 

@@ -1,24 +1,28 @@
 import os
 import shutil
-from dtos.keyword_dtos import KeywordUpdateDTO
+from dtos.keyword_dtos import KeywordUpdateDTO, KeywordNodeDTO
 from services.keyword_service import get_hierarchy, get_hierarchy_keywords, update_keyword
-from services.course_service import create_course, get_all_courses, get_all_materials_for_course, get_course, get_material, remove_from_course, signup_to_course, delete_course_from_db
+from services.course_service import create_course, get_courses_for_user, get_all_materials_for_course, get_course, get_material, remove_from_course, signup_to_course, delete_course_from_db
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List
 from dtos.user_dtos import Token, UserLogin, UserRegistration
 from services.user_service import create_user, login
 from dtos.test_dtos import TestCreateDTO, TestResponseDTO
-from services.test_service import create_test
-from dtos.attempt_dtos import AttemptDetailDTO, AttemptListItemDTO, AttemptResultDTO, GradeOverrideDTO, StudentTestDTO, SubmitTestDTO, TestListItemDTO
+from services.test_service import create_test, get_course_tests_for_professor, get_test_detail_for_professor, delete_test_by_id
+from dtos.attempt_dtos import AttemptDetailDTO, AttemptResultDTO, GradeOverrideDTO, SubmitTestDTO, TestAttemptsDTO
 from services.take_test_service import get_course_tests_for_student, get_test_for_student, submit_test
-from services.grading_service import get_attempt_result, get_test_attempts, grade_attempt, override_grade
+from dtos.user_dtos import StudentCreateDTO, StudentRegisterResultDTO, StudentSummaryDTO
+from services.student_service import create_student, list_students
+from services.grading_service import get_attempt_result, get_test_attempts, get_test_stats, grade_attempt, override_grade
+from dtos.stats_dtos import TestStatsDTO
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, BackgroundTasks
 from pydantic import BaseModel
 from model.database import engine
 from sqlmodel import SQLModel
 from model.question import Question
-from model.keyword import Keyword, KeywordHierarchy
+from model.keyword import KeywordHierarchy
 from model.course import Course, CourseMaterial
+from dtos.course_dtos import CourseSummaryDTO
 from model.user import UserCourseLink, User
 from model.test import UserTestLink, Test
 from model.attempt import TestAttempt, Answer
@@ -113,14 +117,19 @@ async def upload_material(course_id: int, file: UploadFile, token: str):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    await parse_materials(course_id, file_path)
+    try:
+        await parse_materials(course_id, file_path)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to process the uploaded material. Please try again.")
 
 @app.post("/courses", response_model=Course)
 async def create_course_endpoint(name: str, token: str):
     current_user = await get_current_user(token)
     if current_user.get("role") != "PROFESSOR":
         raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
-    course = create_course(name, current_user.get("sub"))
+    course = await create_course(name, current_user.get("sub"))
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
@@ -138,19 +147,22 @@ async def delete_course(course_id: int, token: str):
     
     return {"detail": "Course deleted successfully"}
 
-@app.get("/courses/{course_id}", response_model=Course)
+@app.get("/courses/{course_id}", response_model=CourseSummaryDTO)
 async def get_course_endpoint(course_id: int, token: str):
     current_user = await get_current_user(token)
     if not current_user:
         raise HTTPException(status_code=401, detail="Invalid token")
-    return await get_course(course_id)
+    course = await get_course(course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return course
 
-@app.get("/courses", response_model=List[Course])
+@app.get("/courses", response_model=List[CourseSummaryDTO])
 async def get_all_courses_endpoint(token: str):
     current_user = await get_current_user(token)
     if not current_user:
         raise HTTPException(status_code=401, detail="Invalid token")
-    return await get_all_courses()
+    return await get_courses_for_user(current_user.get("sub"))
 
 @app.get("/courses/{course_id}/materials", response_model=List[CourseMaterial])
 async def get_all_materials_for_course_endpoint(course_id: int, token: str):
@@ -187,15 +199,14 @@ async def get_hierarchy_endpoint(hierarchy_id: int, token: str):
         raise HTTPException(status_code=401, detail="Invalid token")
     return await get_hierarchy(hierarchy_id)
 
-@app.put("/keywords/{keyword_id}")
+@app.put("/keywords/{keyword_id}", response_model=KeywordNodeDTO)
 async def get_keyword_endpoint(keyword_id: int, update_data: KeywordUpdateDTO, token: str):
     current_user = await get_current_user(token)
     if current_user.get("role") != "PROFESSOR":
         raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
-    await update_keyword(keyword_id, update_data)
+    return await update_keyword(keyword_id, update_data)
 
-
-@app.get("/hierarchy/{hierarchy_id}/keywords", response_model=List[Keyword])
+@app.get("/hierarchy/{hierarchy_id}/keywords", response_model=List[KeywordNodeDTO])
 async def get_hierarchy_keywords_endpoint(hierarchy_id: int, token: str):
     current_user = await get_current_user(token)
     if not current_user:
@@ -209,19 +220,50 @@ async def create_test_endpoint(course_id: int, test_data: TestCreateDTO, token: 
         raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
     return await create_test(course_id, current_user.get("sub"), test_data)
 
-@app.get("/courses/{course_id}/tests", response_model=List[TestListItemDTO])
-async def get_course_tests_endpoint(course_id: int, token: str):
+@app.post("/students", response_model=StudentRegisterResultDTO)
+async def create_student_endpoint(data: StudentCreateDTO, token: str):
     current_user = await get_current_user(token)
-    if current_user.get("role") != "STUDENT":
-        raise HTTPException(status_code=403, detail="Access forbidden: Students only")
-    return await get_course_tests_for_student(course_id, current_user.get("sub"))
+    if current_user.get("role") != "PROFESSOR":
+        raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
+    return await create_student(current_user.get("sub"), data)
 
-@app.get("/tests/{test_id}", response_model=StudentTestDTO)
-async def get_test_endpoint(test_id: int, token: str):
+@app.get("/students", response_model=List[StudentSummaryDTO])
+async def list_students_endpoint(token: str):
     current_user = await get_current_user(token)
-    if current_user.get("role") != "STUDENT":
-        raise HTTPException(status_code=403, detail="Access forbidden: Students only")
-    return await get_test_for_student(test_id, current_user.get("sub"))
+    if current_user.get("role") != "PROFESSOR":
+        raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
+    return await list_students(current_user.get("sub"))
+
+@app.get("/courses/{course_id}/tests")
+async def get_course_tests_endpoint(course_id: int, token: str):
+    # Shape is role-dependent (professors see a management list, students a taken-flagged list), so no
+    # fixed response_model — FastAPI still serializes whichever DTO list is returned.
+    current_user = await get_current_user(token)
+    if current_user.get("role") == "PROFESSOR":
+        return await get_course_tests_for_professor(course_id)
+    if current_user.get("role") == "STUDENT":
+        return await get_course_tests_for_student(course_id, current_user.get("sub"))
+    raise HTTPException(status_code=403, detail="Access forbidden")
+
+@app.get("/tests/{test_id}")
+async def get_test_endpoint(test_id: int, token: str):
+    # Role-dependent shape: professors get the full detail (with correct answers + tested keywords),
+    # students get the answer-free StudentTestDTO. No fixed response_model for that reason.
+    current_user = await get_current_user(token)
+    if current_user.get("role") == "PROFESSOR":
+        return await get_test_detail_for_professor(test_id)
+    if current_user.get("role") == "STUDENT":
+        return await get_test_for_student(test_id, current_user.get("sub"))
+    raise HTTPException(status_code=403, detail="Access forbidden")
+
+@app.delete("/tests/{test_id}")
+async def delete_test_endpoint(test_id: int, token: str):
+    current_user = await get_current_user(token)
+    if current_user.get("role") != "PROFESSOR":
+        raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
+    if not await delete_test_by_id(test_id):
+        raise HTTPException(status_code=404, detail="Test not found")
+    return {"deleted": True}
 
 @app.post("/tests/{test_id}/submit", response_model=AttemptResultDTO)
 async def submit_test_endpoint(test_id: int, submission: SubmitTestDTO, token: str, background_tasks: BackgroundTasks):
@@ -232,12 +274,19 @@ async def submit_test_endpoint(test_id: int, submission: SubmitTestDTO, token: s
     background_tasks.add_task(grade_attempt, result.attempt_id)
     return result
 
-@app.get("/tests/{test_id}/attempts", response_model=List[AttemptListItemDTO])
+@app.get("/tests/{test_id}/attempts", response_model=TestAttemptsDTO)
 async def get_test_attempts_endpoint(test_id: int, token: str):
     current_user = await get_current_user(token)
     if current_user.get("role") != "PROFESSOR":
         raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
     return await get_test_attempts(test_id, current_user.get("sub"))
+
+@app.get("/tests/{test_id}/stats", response_model=TestStatsDTO)
+async def get_test_stats_endpoint(test_id: int, token: str):
+    current_user = await get_current_user(token)
+    if current_user.get("role") != "PROFESSOR":
+        raise HTTPException(status_code=403, detail="Access forbidden: Professors only")
+    return await get_test_stats(test_id, current_user.get("sub"))
 
 @app.get("/attempts/{attempt_id}/result", response_model=AttemptDetailDTO)
 async def get_attempt_result_endpoint(attempt_id: int, token: str):
