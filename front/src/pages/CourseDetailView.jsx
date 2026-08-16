@@ -38,6 +38,7 @@ export default function CourseDetailView({ courseId, index, onClose }) {
   const [pendingFile, setPendingFile] = useState(null)
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
+  const [hierarchyVersion, setHierarchyVersion] = useState(0)
 
   useEffect(() => {
     if (!toast) return
@@ -103,6 +104,9 @@ export default function CourseDetailView({ courseId, index, onClose }) {
     try {
       await api.uploadMaterial(courseId, file, auth.token)
       await load()
+      // hierarchyId is unchanged when uploading into an already-indexed course, so
+      // KeywordHierarchy wouldn't otherwise know to refetch — force a remount instead.
+      setHierarchyVersion((v) => v + 1)
       setToast('Material processed — keyword index updated')
     } catch (err) {
       setError(err.message)
@@ -219,7 +223,7 @@ export default function CourseDetailView({ courseId, index, onClose }) {
 
       <div>
         {indexed ? (
-          <KeywordHierarchy hierarchyId={course.keyword_hierarchy_id} />
+          <KeywordHierarchy key={hierarchyVersion} hierarchyId={course.keyword_hierarchy_id} />
         ) : (
           <>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#A9B0BD' }}>Keyword index</div>

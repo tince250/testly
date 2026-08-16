@@ -67,10 +67,11 @@ export default function AuthPage() {
         }}
       >
         {/* Left — form */}
-        <div style={{ padding: '56px 64px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '56px 64px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '100%', maxWidth: 470 }}>
           <Logo />
 
-          <div style={{ marginTop: 64, maxWidth: 400 }}>
+          <div style={{ marginTop: 64 }}>
             <div className="serif" style={{ fontSize: 40, lineHeight: 1.1, letterSpacing: '-0.01em' }}>
               {isRegister ? 'Create your professor account' : 'Welcome back to testly'}
             </div>
@@ -83,7 +84,7 @@ export default function AuthPage() {
 
           <form onSubmit={submit}>
             {isRegister ? (
-              <div style={{ marginTop: 32, maxWidth: 470, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <Field label="Name" placeholder="Jelena" value={form.name} onChange={set('name')} required />
                   <Field label="Lastname" placeholder="Miković" value={form.lastname} onChange={set('lastname')} required />
@@ -111,7 +112,7 @@ export default function AuthPage() {
                 </div>
               </div>
             ) : (
-              <div style={{ marginTop: 36, maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ marginTop: 36, display: 'flex', flexDirection: 'column', gap: 18 }}>
                 <Field label="Email" type="email" placeholder="j.mikovic@uni.edu" value={form.email} onChange={set('email')} required />
                 <Field label="Password" type="password" placeholder="••••••••••" value={form.password} onChange={set('password')} required />
                 {error && <div style={{ fontSize: 13, color: '#C2503F' }}>{error}</div>}
@@ -124,8 +125,7 @@ export default function AuthPage() {
               </div>
             )}
           </form>
-
-          <div style={{ flex: 1 }} />
+        </div>
         </div>
 
         {/* Right — illustration */}
