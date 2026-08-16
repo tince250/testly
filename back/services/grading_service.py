@@ -1,12 +1,14 @@
 import asyncio
 import os
+import statistics
 from typing import List
 from dotenv import load_dotenv
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from dtos.attempt_dtos import AttemptDetailDTO, AttemptListItemDTO, GradeOverrideDTO, QuestionResultDTO
+from dtos.attempt_dtos import AttemptDetailDTO, AttemptListItemDTO, GradeOverrideDTO, QuestionResultDTO, TestAttemptsDTO
+from dtos.stats_dtos import QuestionStatDTO, ScoreBucketDTO, TestStatsDTO
 from model.attempt import AttemptStatus
 from model.question import Question, QuestionType
 from repositories import AttemptRepository, QuestionRepository, TestRepository, UserRepository
@@ -28,6 +30,7 @@ def _to_attempt_detail_dto(attempt, answers, questions: List[Question]) -> Attem
         answer = answers_by_question.get(question.id)
         results.append(QuestionResultDTO(
             question_id=question.id,
+            answer_id=answer.id if answer else None,
             text=question.text,
             type=question.type,
             student_answer=answer.answer if answer else None,
@@ -108,7 +111,7 @@ async def get_attempt_result(attempt_id: int, requester_email: str) -> AttemptDe
         questions = await question_repo.get_questions_for_test(attempt.test_id)
         return _to_attempt_detail_dto(attempt, answers, questions)
 
-async def get_test_attempts(test_id: int, professor_email: str) -> List[AttemptListItemDTO]:
+async def get_test_attempts(test_id: int, professor_email: str) -> TestAttemptsDTO:
     async with async_session_maker() as session:
         attempt_repo = AttemptRepository(session)
         test_repo = TestRepository(session)
@@ -121,6 +124,7 @@ async def get_test_attempts(test_id: int, professor_email: str) -> List[AttemptL
         if test.creator_id != professor.id:
             raise HTTPException(status_code=403, detail="Not the creator of this test")
 
+        enrolled_count = len(await user_repo.get_students_in_courses([test.course_id]))
         attempts = await attempt_repo.get_attempts_for_test(test_id)
         items = []
         for attempt in attempts:
@@ -131,7 +135,78 @@ async def get_test_attempts(test_id: int, professor_email: str) -> List[AttemptL
                 status=attempt.status,
                 score=attempt.score,
             ))
-        return items
+        return TestAttemptsDTO(enrolled_count=enrolled_count, attempts=items)
+
+async def get_test_stats(test_id: int, professor_email: str) -> TestStatsDTO:
+    async with async_session_maker() as session:
+        attempt_repo = AttemptRepository(session)
+        question_repo = QuestionRepository(session)
+        test_repo = TestRepository(session)
+        user_repo = UserRepository(session)
+
+        test = await test_repo.get_test_by_id(test_id)
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+        professor = await user_repo.get_user_by_email(professor_email)
+        if test.creator_id != professor.id:
+            raise HTTPException(status_code=403, detail="Not the creator of this test")
+
+        enrolled_count = len(await user_repo.get_students_in_courses([test.course_id]))
+        attempts = await attempt_repo.get_attempts_for_test(test_id)
+        attempt_count = len(attempts)
+        graded = [a for a in attempts if a.status == AttemptStatus.GRADED]
+        graded_count = len(graded)
+        scores = [a.score for a in graded if a.score is not None]
+
+        participation_rate = round(attempt_count / enrolled_count * 100, 1) if enrolled_count else None
+        average_score = round(statistics.mean(scores), 1) if scores else None
+        median_score = round(statistics.median(scores), 1) if scores else None
+        min_score = min(scores) if scores else None
+        max_score = max(scores) if scores else None
+
+        # Fixed score bands: [0,50) / [50,70) / [70,100].
+        bands = [("0–50%", 0, 50), ("50–70%", 50, 70), ("70–100%", 70, 101)]
+        distribution = [
+            ScoreBucketDTO(label=label, count=sum(1 for s in scores if low <= s < high))
+            for label, low, high in bands
+        ]
+
+        questions = await question_repo.get_questions_for_test(test_id)
+        answers = await attempt_repo.get_answers_for_test(test_id)
+        answers_by_question = {}
+        for answer in answers:
+            answers_by_question.setdefault(answer.question_id, []).append(answer)
+
+        question_stats = []
+        for question in questions:
+            q_answers = answers_by_question.get(question.id, [])
+            graded_answers = [a for a in q_answers if a.is_correct is not None]
+            answered_count = len(graded_answers)
+            correct_count = sum(1 for a in graded_answers if a.is_correct)
+            correct_rate = round(correct_count / answered_count * 100, 1) if answered_count else None
+            question_stats.append(QuestionStatDTO(
+                question_id=question.id,
+                text=question.text,
+                type=question.type,
+                answered_count=answered_count,
+                correct_count=correct_count,
+                correct_rate=correct_rate,
+            ))
+
+        return TestStatsDTO(
+            test_id=test.id,
+            title=test.title,
+            enrolled_count=enrolled_count,
+            attempt_count=attempt_count,
+            graded_count=graded_count,
+            participation_rate=participation_rate,
+            average_score=average_score,
+            median_score=median_score,
+            min_score=min_score,
+            max_score=max_score,
+            distribution=distribution,
+            questions=question_stats,
+        )
 
 async def override_grade(answer_id: int, professor_email: str, data: GradeOverrideDTO) -> AttemptDetailDTO:
     async with async_session_maker() as session:
