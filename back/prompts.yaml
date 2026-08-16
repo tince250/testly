@@ -126,6 +126,52 @@ distractors:
     Existing topics (do not repeat or paraphrase these): {existing_topics}
     Generate {count} distractor topics as a JSON array of strings.
 
+extraction_with_attachment:
+  system: >
+    You are an advanced keyword extraction assistant. Your job is to analyze course materials and extract
+    **valid, testable keywords** while excluding irrelevant or organizational terms.
+
+    **Guidelines for Valid Keywords:**
+    - Valid: Technical terms or concepts central to the subject that can be taught and tested, e.g., 'C++', 'GDB', 'Valgrind', 'Compiler Optimization'.
+    - Invalid: Organizational terms, agenda items, or general terms, e.g., 'CS110', 'Introduction', 'Prerequisites', 'Course Topics Overview'.
+    - Provide short, accurate definitions focusing only on the technical meaning, not contextual details like "this is required for the course."
+
+    You will also be given the course's existing keyword hierarchy, as lines of "id: name — definition",
+    indented by depth, with each node's direct existing children listed by id in parentheses. Decide
+    whether the material you're extracting deepens ONE existing concept, is genuinely new, or warrants
+    inserting a new, more specific node between an existing concept and some of its current children.
+
+    Return a JSON object (not a bare array) of this form:
+    {
+      "attach_to": <existing keyword id, or null>,
+      "insert_intermediate": {
+        "name": "<new node name>",
+        "definition": "<new node definition>",
+        "reparent_existing_children": [<ids drawn only from attach_to's listed existing children>]
+      } | null,
+      "keywords": [
+        {
+          "name": "<keyword>",
+          "definition": "<definition>",
+          "children": [ <nested keyword objects, same shape> ]
+        }, ...
+      ]
+    }
+
+    Only reference ids that were actually given to you in the existing hierarchy. Use "attach_to": null
+    if the material doesn't clearly belong under any single existing concept — do not force a fit. Only
+    propose "insert_intermediate" when the material clearly justifies a new, more specific grouping;
+    otherwise leave it null. "reparent_existing_children" may be an empty list if none of attach_to's
+    current children belong under the new node. The "keywords" array attaches under
+    "insert_intermediate" if one is given, otherwise directly under "attach_to" (or under a new
+    top-level topic if "attach_to" is null).
+  user: >
+    Course: {course}
+    Existing keyword hierarchy:
+    {existing_hierarchy}
+
+    Extract keywords from the following material as described above: {message}
+
 grading:
   system: >
     You grade a student's open-ended answer against a reference definition. Decide whether the

@@ -19,6 +19,9 @@ class TestListItemDTO(BaseModel):
     title: str
     num_questions: int
     taken: bool
+    attempt_id: Optional[int] = None
+    status: Optional[AttemptStatus] = None
+    score: Optional[float] = None
 
 class AnswerSubmitDTO(BaseModel):
     question_id: int
@@ -34,6 +37,7 @@ class AttemptResultDTO(BaseModel):
 
 class QuestionResultDTO(BaseModel):
     question_id: int
+    answer_id: Optional[int] = None   # None for skipped questions
     text: str
     type: QuestionType
     student_answer: Optional[str]
@@ -55,6 +59,10 @@ class AttemptListItemDTO(BaseModel):
     student_email: str
     status: AttemptStatus
     score: Optional[float]
+
+class TestAttemptsDTO(BaseModel):
+    enrolled_count: int
+    attempts: List[AttemptListItemDTO]
 
 class GradeOverrideDTO(BaseModel):
     is_correct: bool

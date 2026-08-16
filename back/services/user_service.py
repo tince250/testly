@@ -1,4 +1,4 @@
-from http.client import HTTPException
+from fastapi import HTTPException
 from dtos.user_dtos import UserLogin, UserRegistration
 from model.user import User, UserRole
 from repositories import UserRepository

@@ -35,16 +35,19 @@ async def get_course_tests_for_student(course_id: int, student_email: str) -> Li
             raise HTTPException(status_code=403, detail="Not enrolled in this course")
 
         tests = await course_repo.get_all_tests_for_course(course_id)
-        taken_test_ids = set(await attempt_repo.get_test_ids_taken_by_student(student.id))
 
         items = []
         for test in tests:
             questions = await question_repo.get_questions_for_test(test.id)
+            attempt = await attempt_repo.get_attempt_for_student_and_test(student.id, test.id)
             items.append(TestListItemDTO(
                 test_id=test.id,
                 title=test.title,
                 num_questions=len(questions),
-                taken=test.id in taken_test_ids,
+                taken=attempt is not None,
+                attempt_id=attempt.id if attempt else None,
+                status=attempt.status if attempt else None,
+                score=attempt.score if attempt else None,
             ))
         return items
 

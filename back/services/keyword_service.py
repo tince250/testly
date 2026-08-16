@@ -1,9 +1,9 @@
-from http.client import HTTPException
+from fastapi import HTTPException
 from typing import List, Optional
-from dtos.keyword_dtos import KeywordUpdateDTO
+from dtos.keyword_dtos import KeywordUpdateDTO, KeywordNodeDTO
 from repositories import KeywordRepository
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from model.keyword import Keyword, KeywordHierarchy
+from model.keyword import KeywordHierarchy
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
@@ -23,25 +23,26 @@ async def get_hierarchy(hierarchy_id: int) -> KeywordHierarchy:
         material = await repo.get_hierarchy_by_id(hierarchy_id)
         return material
     
-async def get_hierarchy_keywords(hierarchy_id: int) -> List[Keyword]:
+async def get_hierarchy_keywords(hierarchy_id: int) -> List[KeywordNodeDTO]:
     async with async_session_maker() as session:
         repo = KeywordRepository(session)
-        root = await repo.get_root_by_hierarchy_id(hierarchy_id)
+
+        hierarchy = await repo.get_hierarchy_by_id(hierarchy_id)
+        if not hierarchy:
+            raise HTTPException(status_code=404, detail="Hierarchy not found")
+
+        root = await repo.get_keyword_by_id(hierarchy.root_id)
         if not root:
             return []
 
-        # LAZY LOADING FIX
-        #async def collect_keywords(keyword: Keyword, keywords: List[Keyword]):
-        #    keywords.append(keyword)
-        #    for child in keyword.children:
-        #        await collect_keywords(child, keywords)
+        descendants = await repo.get_all_descendant_keywords(root.id)
 
-        all_keywords = []
-        #await collect_keywords(root, all_keywords)
+        return [
+            KeywordNodeDTO(id=k.id, name=k.name, definition=k.definition, parent_id=k.parent_id)
+            for k in [root] + descendants
+        ]
 
-        return all_keywords
-
-async def update_keyword(keyword_id: int, update_data: KeywordUpdateDTO) -> Optional[Keyword]:
+async def update_keyword(keyword_id: int, update_data: KeywordUpdateDTO) -> KeywordNodeDTO:
     async with async_session_maker() as session:
         repo = KeywordRepository(session)
 
@@ -54,4 +55,9 @@ async def update_keyword(keyword_id: int, update_data: KeywordUpdateDTO) -> Opti
         if not updated_keyword:
             raise HTTPException(status_code=404, detail="Keyword not found")
 
-        return updated_keyword
+        return KeywordNodeDTO(
+            id=updated_keyword.id,
+            name=updated_keyword.name,
+            definition=updated_keyword.definition,
+            parent_id=updated_keyword.parent_id,
+        )
